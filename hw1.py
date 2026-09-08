@@ -81,3 +81,52 @@ if __name__ == '__main__':
                  hide_index=True,
                  column_config={
                      "link": st.column_config.LinkColumn()})
+
+if __name__ == '__main__':
+    results = retrieve_data_from_gcs(GCP_BUCKET_NAME, GCP_FILE_NAME)
+    
+
+    company_dictionary = results["company_dict"]
+    job_title = results["job_title"]
+    data = pd.DataFrame(results["results"])
+
+    st.title(f"{job_title} Listings and Skills")
+
+    company_names = sorted(company_dictionary.keys())
+    selected_companies = []
+
+    with st.sidebar:
+        st.write("Filter by Company")
+        for company in company_names:
+            if st.checkbox(company, value=True):
+                selected_companies.append(company)
+
+    if selected_companies:
+        pattern = "|".join(re.escape(name) for name in selected_companies)
+        mask = data["link"].str.contains(pattern, case=False, na=False)
+        filtered_df = data.loc[mask].copy()
+    else:
+        filtered_df = data.iloc[0:0].copy()
+
+    filtered_df = filtered_df[["date", "title", "skills", "link"]]
+    filtered_df = filtered_df.drop_duplicates(subset="link")
+    filtered_df = filtered_df.sort_values(
+        by=["date", "title"],
+        ascending=[False, True],
+    )
+
+    st.dataframe(
+        filtered_df,
+        hide_index=True,
+        column_config={
+            "link": st.column_config.LinkColumn("Job link"),
+        },
+    )
+
+    skill_counts = summarize_distribution(filtered_df, "skills")
+    skill_chart = pd.DataFrame(
+        list(skill_counts.items()),
+        columns=["Skill", "Count"],
+    ).set_index("Skill")
+
+    st.bar_chart(skill_chart)
